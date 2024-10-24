@@ -1,0 +1,97 @@
+---
+title: "Assignment 9"
+author: "Kevin Havis"
+format: html
+---
+
+## Web APIs - New York Times
+
+```{r}
+library(tidyverse)
+library(dotenv)
+library(httr2)
+library(jsonlite)
+library(knitr)
+```
+
+## Introduction
+
+Today we will practice using web APIs to query and return data. We'll use the New York Times API to query for the current top sellers in hardcover fiction.
+
+We've stored our API key in a `.env` outside of version control for security. We'll read that in first.
+
+```{r, warning=FALSE}
+dotenv::load_dot_env()
+
+key <- Sys.getenv("KEY")
+
+```
+
+Now we'll set the URL to the endpoint we'd like to use, and use the `httr2` package to append our API key. This will send a `GET` request to the endpoint and return the results in JSON format to the `data` object.
+
+```{r}
+endpoint <- "https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json"
+
+resp <- request(endpoint) |>
+  req_url_query(`api-key` = key) |>
+  req_perform()
+
+data <- resp_body_json(resp)
+
+```
+
+Our data is returned as a list of lists. We don't care about the request metadata so we'll extract the list containing the book data into the `books` object.
+
+```{r}
+books <- data$results$books
+```
+
+Now we'll need to reformat into something flat and tidy. It would have been tedious to flatten all these lists, so I prompted ChatGPT to develop a way to assign names to the lists so that we could unpack them elegantly. It suggested using `purrr` and `map_dfr`, but since our lists were inconsistent across columns, we first had to wrap the values in lists of their owns to ensure they were consistent.
+
+```{r}
+# Assign column names
+col_names <- c('rank',
+                 'rank_last_week',
+                 'weeks_on_list',
+                 'asterisk',
+                 'dagger',
+                 'primary_isbn10',
+                 'primary_isbn13',
+                 'publisher',
+                 'description',
+                 'price',
+                 'title',
+                 'author',
+                 'contributor',
+                 'contributor_note',
+                 'book_image',
+                 'book_image_width',
+                 'book_image_height',
+                 'amazon_product_url',
+                 'age_group',
+                 'book_review_link',
+                 'first_chapter_link',
+                 'sunday_review_link',
+                 'article_chapter_link',
+                 'isbns',
+                 'buy_links',
+                 'book_uri'
+                 )
+
+# Map each column to the column names for further manipulation
+named_lists <- map(books, ~set_names(.x, col_names))
+
+# Put non-lists into lists and map them to columns in a tibble
+books_tibble <- map_dfr(named_lists,
+                        ~ as_tibble_row(map_if(.x, ~ length(.x) > 1, list)))
+
+# View the resulting tibble
+kable(head(books_tibble))
+
+```
+
+If necessary we could continue to split the columns of lists into individual components, but this structure makes sense as the most important information is easily machine and human readable.
+
+## Conclusion
+
+Web APIs are a crucial tool for any data scientist. We demonstrated how to securely load secrets such as API keys using `.env` files. We then used `httr2` to help us construct an API request in a modular way. Finally, we took the deeply nested JSON structure and unfolded it into a more usable tidy format.
