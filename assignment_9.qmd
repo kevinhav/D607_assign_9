@@ -6,7 +6,7 @@ format: html
 
 ## Web APIs - New York Times
 
-```{r}
+```{r, output=FALSE}
 library(tidyverse)
 library(dotenv)
 library(httr2)
@@ -21,6 +21,7 @@ Today we will practice using web APIs to query and return data. We'll use the Ne
 We've stored our API key in a `.env` outside of version control for security. We'll read that in first.
 
 ```{r, warning=FALSE}
+# Load key from our environment file
 dotenv::load_dot_env()
 
 key <- Sys.getenv("KEY")
@@ -30,12 +31,15 @@ key <- Sys.getenv("KEY")
 Now we'll set the URL to the endpoint we'd like to use, and use the `httr2` package to append our API key. This will send a `GET` request to the endpoint and return the results in JSON format to the `data` object.
 
 ```{r}
+# Set the URL endpoint
 endpoint <- "https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json"
 
+# Build the request and response using endpoint and key, then execute
 resp <- request(endpoint) |>
   req_url_query(`api-key` = key) |>
   req_perform()
 
+# Create list of lists object from the data
 data <- resp_body_json(resp)
 
 ```
@@ -43,10 +47,11 @@ data <- resp_body_json(resp)
 Our data is returned as a list of lists. We don't care about the request metadata so we'll extract the list containing the book data into the `books` object.
 
 ```{r}
+# Picking out the results from the API response
 books <- data$results$books
 ```
 
-Now we'll need to reformat into something flat and tidy. It would have been tedious to flatten all these lists, so I prompted ChatGPT to develop a way to assign names to the lists so that we could unpack them elegantly. It suggested using `purrr` and `map_dfr`, but since our lists were inconsistent across columns, we first had to wrap the values in lists of their owns to ensure they were consistent.
+Now we'll need to reformat into something flat and tidy. It would have been tedious to flatten all these lists, so I prompted ChatGPT to develop a way to assign names to the lists so that we could unpack them elegantly. It suggested using `purrr` and `map_dfr`, but since our columns contained both lists and scalars, we first had to wrap the values in lists of their own to ensure they were consistent.
 
 ```{r}
 # Assign column names
